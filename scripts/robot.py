@@ -30,8 +30,11 @@ def back(t,s=100):
 def left(t,s=100):
 	mov(t,s,0)
 
-forw(0.5, 100)
+
+# mov(10, 80, 100)
+
+forw(10, 100)
 sleep(1)
-forw(0.5,-50)
-sleep(1)
-back(0.5, 50)
+forw(10,-100)
+# sleep(1)
+# back(5, 50)
