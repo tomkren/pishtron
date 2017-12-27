@@ -1,4 +1,4 @@
-# Moje pi3 README
+# pishtron
 
 Tohle je můj soubor s vtipy-tipy-tricky, kamaráde!
 
