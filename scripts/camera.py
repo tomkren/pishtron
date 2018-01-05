@@ -3,6 +3,8 @@ from time import sleep
 
 camera = PiCamera()
 
+camera.rotation = 180
+
 camera.start_preview()
 camera.start_recording('/home/pi/Desktop/video01.h264')
 
