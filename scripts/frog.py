@@ -1,25 +1,46 @@
 #!/usr/bin/python3
 
-import time
 import sys
 import os
+import time
+from datetime import datetime
 
+from picamera import PiCamera
 import explorerhat as eh
 from evdev import InputDevice, categorize, ecodes, KeyEvent
 
+import getpass
+import subprocess
 
+# constants
+
+
+def mk_filename():
+    return datetime.now().strftime("%Y-%m-%d--%H-%M-%S-%f") 
+
+print(mk_filename(), getpass.getuser())
+
+camera_path = '/home/pi/Pictures/frog-bot/'
+
+m1_speed = 30
+m2_speed = 14
+
+m1_dir_diff_factor = 1.5
+
+increase_factor = 1.05
+
+
+# i/o handlers
+
+camera = PiCamera()
+camera.rotation = 180
+
+gamepad = InputDevice('/dev/input/event0')
 
 laser = o1 = eh.output.one
 m1 = eh.motor.one
 m2 = eh.motor.two
 
-gamepad = InputDevice('/dev/input/event0')
-
-
-m1_speed = 30
-m2_speed = 14
-
-increase_factor = 1.05
 
 
 def increase_speed():
@@ -37,14 +58,16 @@ def decrease_speed():
 
 
 
-def pressed_left():
-    print('head LEFT!')
-    m1.speed(-m1_speed*1.5)
-
-    
 def pressed_right():
     print('head RIGHT!')
     m1.speed(m1_speed)
+
+    
+def pressed_left():
+    print('head LEFT!')
+    speed = - min(m1_dir_diff_factor * m1_speed, 100)
+    m1.speed(speed)
+   
 
     
 def pressed_up():
@@ -67,11 +90,19 @@ def stop_y():
     
 
 def pressed_X():
-    print('X: TODO take photo')
+    print('X: taking a photo.')
+    filename = camera_path + mk_filename() + '.jpg'
+    camera.capture(filename)
+    
     
 def pressed_Y():
-    print('Y: TODO take camera clip')
-
+    print('Y pressed : start recording camera clip ...')
+    filename = camera_path + 'video-' + mk_filename() + '.h264'
+    camera.start_recording(filename)
+    
+def released_Y():
+    print('Y released: stop recording!')
+    camera.stop_recording()
 
 def pressed_A():
     print('A: toggling laser')
@@ -131,7 +162,8 @@ def main():
                 else : print('Pressed key_code =', key_code)
 
             elif key_event.keystate == KeyEvent.key_up:
-                if key_code == BTN_B : released_B()
+                if   key_code == BTN_B : released_B()
+                elif key_code == BTN_Y : released_Y()
             
         elif event.type == ecodes.EV_ABS:
             val = event.value
@@ -148,9 +180,15 @@ def main():
 
 
 def restart_script():
-    path = os.path.realpath(__file__)
-    argv0 = sys.argv[0]
-    os.execl(path, argv0)
+    #camera.close()
+    #eh.explorerhat_exit() # still blinking ...
+    # path = os.path.realpath(__file__)
+    #argv0 = sys.argv[0]
+    # os.execl(path, argv0) # problém s kamerou a právama
+    # print(path)
+    #print(argv0)
+    #subprocess.run(argv0) # problém: pak blioká, páč je otevřeno víc explorer hatů
+    print("Restart turned off, sorry!")
                 
                 
 if __name__ == "__main__":
