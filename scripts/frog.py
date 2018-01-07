@@ -1,37 +1,62 @@
 #!/usr/bin/python3
 
-import explorerhat as eh
 import time
 import sys
+import os
+
+import explorerhat as eh
+from evdev import InputDevice, categorize, ecodes, KeyEvent
+
+
 
 laser = o1 = eh.output.one
 m1 = eh.motor.one
 m2 = eh.motor.two
 
-
-from evdev import InputDevice, categorize, ecodes, KeyEvent
 gamepad = InputDevice('/dev/input/event0')
 
 
 m1_speed = 30
-# m1_step_time = 0.015
-
 m2_speed = 14
-# m2_step_time = 0.01
+
+increase_factor = 1.05
+
+
+def increase_speed():
+    global m1_speed, m2_speed
+    m1_speed = min(m1_speed * increase_factor, 100)
+    m2_speed = min(m2_speed * increase_factor, 100)
+    print('[+SPEED] m1_speed =', m1_speed, 'm2_speed =', m2_speed)
+
+def decrease_speed():
+    global m1_speed, m2_speed
+    decrease_factor = 1 / increase_factor
+    m1_speed = m1_speed * decrease_factor
+    m2_speed = m2_speed * decrease_factor
+    print('[-SPEED] new m1_speed =', m1_speed, 'm2_speed =', m2_speed)
+
+
 
 def pressed_left():
-    print('LEFT!')
+    print('head LEFT!')
     m1.speed(-m1_speed*1.5)
-    # time.sleep(m1_step_time)
-    # m1.stop()
 
     
 def pressed_right():
-    print('RIGHT!')
+    print('head RIGHT!')
     m1.speed(m1_speed)
-    # time.sleep(m1_step_time)
-    # m1.stop()
 
+    
+def pressed_up():
+    print('head UP!')
+    m2.speed(m2_speed)
+
+    
+def pressed_down():
+    print('head DOWN!')
+    m2.speed(-m2_speed)
+
+    
 def stop_x():
     print('STOP-X!')
     m1.stop()
@@ -40,24 +65,13 @@ def stop_y():
     print('STOP-Y!')
     m2.stop()
     
-def pressed_up():
-    print('UP!')
-    m2.speed(m2_speed)
-    # time.sleep(m2_step_time)
-    # m2.stop()
-
-    
-def pressed_down():
-    print('DOWN!')
-    m2.speed(-m2_speed)
-    # time.sleep(m2_step_time)
-    # m2.stop()
 
 def pressed_X():
-    print('X!')
-
+    print('X: TODO take photo')
+    
 def pressed_Y():
-    print('Y!')
+    print('Y: TODO take camera clip')
+
 
 def pressed_A():
     print('A: toggling laser')
@@ -65,37 +79,82 @@ def pressed_A():
 
 
 def pressed_B():
-    print('B!')
+    print('B pressed : laser on')
+    laser.on()
 
+def released_B():
+    print('B released: laser off')
+    laser.off()
+
+
+def pressed_LEFT_SHOULDER():
+    decrease_speed()
+
+def pressed_RIGHT_SHOULDER():
+    increase_speed()
     
-for event in gamepad.read_loop():
-    # print(event)
-    if event.type == ecodes.EV_KEY:
-        keyevent = categorize(event)
-        # print(keyevent)
-        if keyevent.keystate == KeyEvent.key_down:
-            if keyevent.keycode[0] == 'BTN_JOYSTICK':
-                pressed_X()
-            elif keyevent.keycode == 'BTN_THUMB':
-                pressed_A()
-            elif keyevent.keycode == 'BTN_THUMB2':
-                pressed_B()
-            elif keyevent.keycode == 'BTN_TOP':
-                pressed_Y()
-    elif event.type == ecodes.EV_ABS:
-        val = event.value
-        if event.code == 0:  # X-axis
-            if val == 0:
-                pressed_left()
-            elif val == 255:
-                pressed_right()
-            elif val == 127:
-                stop_x()
-        else:  # Y-axis
-            if val == 0:
-                pressed_up()
-            elif val == 255:
-                pressed_down()
-            elif val == 127:
-                stop_y()
 
+BTN_A  = 'BTN_THUMB'
+BTN_B  = 'BTN_THUMB2'
+BTN_X0 = 'BTN_JOYSTICK'
+BTN_Y  = 'BTN_TOP'
+
+BTN_START = 'BTN_BASE4'
+BTN_SELECT = 'BTN_BASE3'
+BTN_LEFT_SHOULDER = 'BTN_TOP2'
+BTN_RIGHT_SHOULDER = 'BTN_BASE'
+
+ABS_LOW  = 0
+ABS_HIGH = 255
+ABS_STOP = 127
+
+do_restart_script = False
+
+def main():
+    global do_restart_script
+    
+    for event in gamepad.read_loop():
+        
+        if event.type == ecodes.EV_KEY:
+            key_event = categorize(event)
+            key_code = key_event.keycode
+            
+            if key_event.keystate == KeyEvent.key_down:
+                if key_code[0]== BTN_X0: pressed_X()
+                elif key_code == BTN_Y : pressed_Y()
+                elif key_code == BTN_A : pressed_A()
+                elif key_code == BTN_B : pressed_B()
+                elif key_code == BTN_LEFT_SHOULDER : pressed_LEFT_SHOULDER()
+                elif key_code == BTN_RIGHT_SHOULDER : pressed_RIGHT_SHOULDER()
+                elif key_code == BTN_SELECT: break
+                elif key_code == BTN_START : do_restart_script = True; break 
+                else : print('Pressed key_code =', key_code)
+
+            elif key_event.keystate == KeyEvent.key_up:
+                if key_code == BTN_B : released_B()
+            
+        elif event.type == ecodes.EV_ABS:
+            val = event.value
+            code = event.code
+
+            if code == 0:
+                if   val == ABS_LOW : pressed_left()
+                elif val == ABS_HIGH: pressed_right()
+                elif val == ABS_STOP: stop_x()
+            elif code == 1:
+                if   val == ABS_LOW : pressed_up()
+                elif val == ABS_HIGH: pressed_down()
+                elif val == ABS_STOP: stop_y()
+
+
+def restart_script():
+    path = os.path.realpath(__file__)
+    argv0 = sys.argv[0]
+    os.execl(path, argv0)
+                
+                
+if __name__ == "__main__":
+    print('Frog script at your service, bro!')
+    main()
+    if do_restart_script:
+        restart_script()
