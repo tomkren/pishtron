@@ -35,11 +35,36 @@ increase_factor = 1.05
 camera = PiCamera()
 camera.rotation = 180
 
-gamepad = InputDevice('/dev/input/event0')
+try:
+    gamepad = InputDevice('/dev/input/event0')
+except FileNotFoundError:
+    gamepad = None
+    print("There is no gamepad ...")
 
+    
 laser = o1 = eh.output.one
 m1 = eh.motor.one
 m2 = eh.motor.two
+
+
+time_lapse_period = 5 * 60
+little_sleep = 5
+
+def time_lapse():
+    num_photos_taken = 0
+    while True:
+        camera.resolution = (2592, 1944)
+        camera.framerate = 15
+        camera.start_preview()
+        time.sleep(little_sleep)
+        camera.capture('/home/pi/Pictures/time-lapses/orchea_'+mk_filename()+'.jpg')
+        camera.stop_preview()
+
+        num_photos_taken += 1
+        print("num_photos_taken =", num_photos_taken)
+        
+        time.sleep(time_lapse_period - little_sleep - 1)
+
 
 
 
@@ -141,6 +166,7 @@ ABS_STOP = 127
 
 do_restart_script = False
 
+        
 def main():
     global do_restart_script
     
@@ -193,6 +219,7 @@ def restart_script():
                 
 if __name__ == "__main__":
     print('Frog script at your service, bro!')
-    main()
+    # main()
+    time_lapse()
     if do_restart_script:
         restart_script()

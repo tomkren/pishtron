@@ -21,6 +21,11 @@ A pak na konec souboru přidáme řádek (např):
 @reboot cd /home/pi/; ./scripts/on_startup.sh
 
 
+### Get local ip
+
+ping raspberrypi.local
+
+
 ## Sprovoznovani TFGP
 
 ### Java 8
