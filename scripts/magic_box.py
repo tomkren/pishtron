@@ -20,19 +20,16 @@ modes = {
     },
     3: {
         'name': 'Pohádky'
+    },
+    4: {
+        'name': 'Básničky'
     }
 }
 
-current_mode_id = 0
+current_mode_id = 2
 player = None
-
-# 'story': {'name':'', 'url':''}
-# 'story': {'name':'', 'url':''}
-
-
-
-
-
+current_word = ''
+current_sentence = ''
 
 keys = {
     ';': {'f': 220, 'like': None, 'read_char_as': 'středník'},
@@ -88,6 +85,17 @@ keys = {
     '-': {'f': 784,'like': None},
 }
 
+brambora = """
+Koulela se ze dvora, 
+takhle velká brambora. 
+Neviděla, neslyšela, 
+že na ni padá závora.
+Kam koukáš ty závoro, 
+na tebe ty bramboro. 
+Kdyby tudy projel vlak, 
+byl by z tebe bramborák!
+"""
+
 def switch_mode(new_mode_id):
     global player, current_mode_id
 
@@ -107,11 +115,14 @@ def is_piano_mode():
 def is_read_char_mode():
     return current_mode_id == 1
 
-def is_read_sentences_mode():
+def is_read_sentence_mode():
     return current_mode_id == 2
 
 def is_story_mode():
     return current_mode_id == 3
+
+def is_poem_mode():
+    return current_mode_id == 4
 
 
 def say(text, lang='cs', slow=False):
@@ -136,6 +147,39 @@ def say_char(char):
         say("Jako "+ keys[char]['like'] +".")
 
 
+def process_sentence_key(key):
+    global current_word, current_sentence
+
+    if key == Key.space:
+
+        # say(current_word)
+        current_sentence += current_word  + ' '
+        print(current_sentence)
+        current_word = ''
+
+    elif key == Key.tab:
+
+        if current_word.strip() != '':
+            say(current_word)
+
+    elif key == Key.enter or key.char == '.' or key.char == '?':
+
+        if key != Key.enter:
+            current_word += key.char
+
+        current_sentence += current_word + ' '
+
+        if current_sentence.strip() != '':
+            say(current_sentence)
+
+        current_sentence = ''
+        current_word = ''
+
+    else:
+
+        current_word += key.char
+
+
 def play_story(story):
     say(story['name'])
     play_youtube(story['url'])
@@ -158,39 +202,44 @@ def play_youtube(url='https://www.youtube.com/watch?v=Ery1iikkMGQ'):
     player.play()
 
 def on_press(key):
-    print('{0} pressed'.format(key))
-    if hasattr(key, 'char') and key.char is not None:
-        if is_piano_mode() and key.char in keys:
-            winsound.Beep(keys[key.char]['f'], 150)
-        elif is_read_char_mode() and key.char is not None:
-            say_char(key.char)
-        elif is_story_mode() and key.char in keys and 'story' in keys[key.char]:
-            play_story(keys[key.char]['story'])
-    elif hasattr(key, 'vk'):
-        num_pad = key.vk - 96
-        if 0 <= num_pad <= 9:
-            print('=-> new mode:', num_pad)
-            if num_pad in modes:
-                switch_mode(num_pad)
+    try:
+        # print('{0} pressed'.format(key))
+        if hasattr(key, 'char') and key.char is not None:
+            if is_piano_mode() and key.char in keys:
+                winsound.Beep(keys[key.char]['f'], 150)
+            elif is_read_char_mode() and key.char is not None:
+                say_char(key.char)
+            elif is_read_sentence_mode():
+                process_sentence_key(key)
+            elif is_story_mode() and key.char in keys and 'story' in keys[key.char]:
+                play_story(keys[key.char]['story'])
+            elif is_poem_mode():
+                say(brambora)
+        elif key == Key.space:
+            if is_read_sentence_mode():
+                process_sentence_key(key)
+        elif key == Key.enter:
+            if is_read_sentence_mode():
+                process_sentence_key(key)
+        elif key == Key.tab:
+            if is_read_sentence_mode():
+                process_sentence_key(key)
+        elif hasattr(key, 'vk'):
+            num_pad = key.vk - 96
+            if 0 <= num_pad <= 9:
+                print(' -> new mode:', num_pad)
+                if num_pad in modes:
+                    switch_mode(num_pad)
+    except:
+        print("jejda!")
+
 
 def on_release(key):
-    print('{0} release'.format(key))
+    # print('{0} release'.format(key))
     if key == Key.esc:
         # Stop listener
         return False
 
-brambora = """
-Koulela se ze dvora, 
-takhle velká brambora. 
-Neviděla, neslyšela, 
-že na ni padá závora.
-Kam koukáš ty závoro, 
-na tebe ty bramboro. 
-Kdyby tudy projel vlak, 
-byl by z tebe bramborák!
-"""
-
-# say(brambora)
 
 # Collect events until released
 with Listener(
