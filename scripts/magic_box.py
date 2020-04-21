@@ -6,8 +6,12 @@ import vlc
 import pafy
 import platform
 import sys
+import string
+import re
+import time
+from os import path
 
-if platform.system() == 'Widows':
+if platform.system() == 'Windows':
     import winsound
 
 
@@ -53,7 +57,7 @@ current_sentence = ''
 
 keys = {
     ';': {'f': 220, 'n': 0, 'like': None, 'read_char_as': 'středník'},
-    '+': {'f': 233, 'n': 1, 'like': None},
+    '+': {'f': 233, 'n': 1, 'like': None, 'read_char_as': 'plus'},
     'ě': {'f': 247, 'n': 2, 'like': None},
     'š': {'f': 277, 'n': 3, 'like':'šibálek',  'story': {'name':'O Šípkové Růžence', 'url':'https://www.youtube.com/watch?v=AEXixpSy1SY'}},
     'č': {'f': 294, 'n': 4, 'like':'čistítko', 'story': {'name':'O Červené karkulce', 'url':'https://youtu.be/WWjMRA1s6sg'}},
@@ -63,8 +67,8 @@ keys = {
     'á': {'f': 369, 'n': 8, 'like': None},
     'í': {'f': 392, 'n': 9, 'like': 'Írán'},
     'é': {'f': 415, 'n': 10, 'like': None},
-    '=': {'f': 440, 'n': 11, 'like': None},
-    '´': {'f': 466, 'n': 12, 'like': None},
+    '=': {'f': 440, 'n': 11, 'like': None, 'read_char_as': 'rovná se'},
+    '´': {'f': 466, 'n': 12, 'like': None, 'read_char_as': 'akut'},
 
     'q': {'f': 415, 'n': 13, 'like': 'kvark',   'story': {'name':'Don Quijote', 'url':'https://www.youtube.com/watch?v=zQFWKxmqx6Q'}},
     'w': {'f': 466, 'n': 14, 'like': 'western', 'story': {'name':' Werich: Žil kdys kdes chlap', 'url':'https://youtu.be/k_gDG1gUdmo'}},
@@ -89,10 +93,10 @@ keys = {
     'k': {'f':880,  'n': 32, 'like': 'kočka',  'story': {'name': 'Křemílek a Vochomůrka', 'url': 'https://www.youtube.com/watch?v=aDK_Wj5RzkI'}},
     'l': {'f':988,  'n': 33, 'like': 'lev',    'story': {'name':'Líná pohádka', 'url':'https://youtu.be/1DEpccD7-ww'}},
     'ů': {'f':1175, 'n': 34, 'like': None},
-    '§': {'f':1319, 'n': 35, 'like': None},
-    '¨': {'f':1397, 'n': 36, 'like': None},
+    '§': {'f':1319, 'n': 35, 'like': None, 'read_char_as': 'paragraf'},
+    '¨': {'f':1397, 'n': 36, 'like': None, 'read_char_as': 'rozlučník'},
 
-    '\\':{'f': 440, 'n': 37, 'like': None},
+    '\\':{'f': 440, 'n': 37, 'like': None, 'read_char_as': 'zpětné lomítko'},
     'y': {'f': 466, 'n': 38, 'like': 'Yetti',  'story': {'name':'Yakari a velký orel', 'url':'https://youtu.be/u1Gcu0Ij_w8'}},
     'x': {'f': 494, 'n': 39, 'like': 'xilofon','story': {'name':'Bylo nás pět', 'url':'https://youtu.be/EH7LO9GIFns'}},
     'c': {'f': 523, 'n': 40, 'like': 'citrón', 'story': {'name':'Chytrá horákyně', 'url':'https://www.youtube.com/watch?v=7lYa5m3i3BA'}},
@@ -100,9 +104,9 @@ keys = {
     'b': {'f': 587, 'n': 42, 'like': 'babička','story': {'name':'Budulínek', 'url':'https://www.youtube.com/watch?v=PzFR5wFUFLw'}},
     'n': {'f': 622, 'n': 43, 'like': 'nočník', 'story': {'name':'Neználek', 'url':'https://www.youtube.com/watch?v=YLGNNs6Yh5Y'}},
     'm': {'f': 659, 'n': 44, 'like': 'máma',   'story': {'name':'Mach a Šebestová', 'url':'https://www.youtube.com/watch?v=BuPrNST4ofY'}},
-    ',': {'f': 698, 'n': 45, 'like': None},
-    '.': {'f': 740, 'n': 46, 'like': None},
-    '-': {'f': 784, 'n': 47, 'like': None},
+    ',': {'f': 698, 'n': 45, 'like': None, 'read_char_as': 'čárka'},
+    '.': {'f': 740, 'n': 46, 'like': None, 'read_char_as': 'tečka'},
+    '-': {'f': 784, 'n': 47, 'like': None, 'read_char_as': 'pomlčka'},
 }
 
 brambora = """
@@ -115,6 +119,24 @@ na tebe ty bramboro.
 Kdyby tudy projel vlak, 
 byl by z tebe bramborák!
 """
+
+trans_punctuation_table = str.maketrans('', '', string.punctuation)
+
+def remove_punctuation(s):
+    return s.translate(trans_punctuation_table)
+
+def urlify(s):
+
+    # Remove all non-word characters (everything except numbers and letters)
+    s = re.sub(r"[^\w\s]", '', s)
+
+    # Replace all runs of whitespace with a single dash
+    s = re.sub(r"\s+", '-', s)
+
+    return s
+
+def to_speech_filename(text):
+    return '../speech/'+ urlify(remove_punctuation(text.lower()).strip()) + '.mp3'
 
 
 def switch_mode(new_mode_id):
@@ -157,14 +179,14 @@ def is_poem_mode():
 
 
 def say(text, lang='cs', slow=False):
-    speech = gTTS(text=text, lang=lang, slow=slow)
-    speech.save('text-to-speech.mp3')
 
-    if platform.system() == 'Widows':
-        p = vlc.MediaPlayer('file:///text-to-speech.mp3')  # Windows
-        # another windows alternative: os.system("start text-to-speech.mp3") # needs: import os
-    else:
-        p = vlc.MediaPlayer('text-to-speech.mp3')  # Linux
+    filename = to_speech_filename(text)
+
+    if not path.exists(filename):
+        speech = gTTS(text=text, lang=lang, slow=slow)
+        speech.save(filename)
+
+    p = vlc.MediaPlayer(filename)
 
     p.play()
 
@@ -179,6 +201,7 @@ def say_char(char):
         say(char)
 
     if char in keys and 'like' in keys[char] and keys[char]['like'] is not None:
+        time.sleep(0.8)
         say("Jako " + keys[char]['like'] + ".")
 
 
@@ -243,22 +266,14 @@ def play_piano_key(key_char):
         freq = keys[key_char]['f']
         winsound.Beep(freq, 150)
     else:
-        filename = '../piano/' + notes[firstNote + keys[key_char]['n']] + '.mp3'
-        print(filename)
+        filename = '../piano/' + notes[(firstNote + keys[key_char]['n']) % len(notes)] + '.mp3'
+        # print(filename)
         p = vlc.MediaPlayer(filename)
         p.play()
-        # sine_tone(
-        #     # see http://www.phy.mtu.edu/~suits/notefreqs.html
-        #     frequency=freq,  # Hz, waves per second A4
-        #     duration=duration,  # seconds to play sound
-        #     volume=1.0,  # 0..1 how loud it is
-        #     # see http://en.wikipedia.org/wiki/Bit_rate#Audio
-        #     sample_rate=22050  # number of samples per second
-        # )
 
 
 def on_press(key):
-    global isFrequencyMode
+    global isFrequencyMode, firstNote
     try:
         # print('{0} pressed'.format(key))
         if hasattr(key, 'char') and key.char is not None:
@@ -277,9 +292,13 @@ def on_press(key):
         elif key == Key.space:
             if is_read_sentence_mode():
                 process_sentence_key(key)
+            elif is_piano_mode():
+                firstNote += 1
         elif key == Key.enter:
             if is_read_sentence_mode():
                 process_sentence_key(key)
+            elif is_piano_mode():
+                firstNote -= 1
         elif key == Key.tab:
             if is_read_sentence_mode():
                 process_sentence_key(key)
