@@ -1,12 +1,15 @@
 #!/usr/bin/python3
 
-import winsound
 from pynput.keyboard import Key, Listener
-
 from gtts import gTTS
 import vlc
 import pafy
-# import os
+import platform
+import sys
+
+if platform.system() == 'Widows':
+    import winsound
+
 
 modes = {
     0: {
@@ -26,63 +29,80 @@ modes = {
     }
 }
 
-current_mode_id = 2
+# Thanks to https://github.com/fuhton/piano-mp3 (MIT license) for piano mp3s in piano folder!
+notes = [
+    'A0', 'Bb0', 'B0', 'C1', 'Db1', 'D1', 'Eb1', 'E1', 'F1', 'Gb1', 'G1', 'Ab1',
+    'A1', 'Bb1', 'B1', 'C2', 'Db2', 'D2', 'Eb2', 'E2', 'F2', 'Gb2', 'G2', 'Ab2',
+    'A2', 'Bb2', 'B2', 'C3', 'Db3', 'D3', 'Eb3', 'E3', 'F3', 'Gb3', 'G3', 'Ab3',
+    'A3', 'Bb3', 'B3', 'C4', 'Db4', 'D4', 'Eb4', 'E4', 'F4', 'Gb4', 'G4', 'Ab4',
+    'A4', 'Bb4', 'B4', 'C5', 'Db5', 'D5', 'Eb5', 'E5', 'F5', 'Gb5', 'G5', 'Ab5',
+    'A5', 'Bb5', 'B5', 'C6', 'Db6', 'D6', 'Eb6', 'E6', 'F6', 'Gb6', 'G6', 'Ab6',
+    'A6', 'Bb6', 'B6', 'C7', 'Db7', 'D7', 'Eb7', 'E7', 'F7', 'Gb7', 'G7', 'Ab7',
+    'A7', 'Bb7', 'B7', 'C8'
+]
+
+print('num notes:', len(notes))
+firstNote = 20
+isFrequencyMode = False
+
+
+current_mode_id = 0
 player = None
 current_word = ''
 current_sentence = ''
 
 keys = {
-    ';': {'f': 220, 'like': None, 'read_char_as': 'středník'},
-    '+': {'f': 233, 'like': None},
-    'ě': {'f': 247, 'like': None},
-    'š': {'f': 277, 'like':'šibálek',  'story': {'name':'O Šípkové Růžence', 'url':'https://www.youtube.com/watch?v=AEXixpSy1SY'}},
-    'č': {'f': 294, 'like':'čistítko', 'story': {'name':'O Červené karkulce', 'url':'https://youtu.be/WWjMRA1s6sg'}},
-    'ř': {'f': 311, 'like':'řeřicha',  'story': {'name':'Alenka v říši divů', 'url':'https://youtu.be/k8ekzT85DjY'}},
-    'ž': {'f': 330, 'like':'život',    'story': {'name':'Živá voda', 'url':'https://youtu.be/rI4xMJZWUhc'}},
-    'ý': {'f': 349, 'like': None},
-    'á': {'f': 369, 'like': None},
-    'í': {'f': 392, 'like': 'Írán'},
-    'é': {'f': 415, 'like': None},
-    '=': {'f': 440, 'like': None},
-    '´': {'f': 466, 'like': None},
+    ';': {'f': 220, 'n': 0, 'like': None, 'read_char_as': 'středník'},
+    '+': {'f': 233, 'n': 1, 'like': None},
+    'ě': {'f': 247, 'n': 2, 'like': None},
+    'š': {'f': 277, 'n': 3, 'like':'šibálek',  'story': {'name':'O Šípkové Růžence', 'url':'https://www.youtube.com/watch?v=AEXixpSy1SY'}},
+    'č': {'f': 294, 'n': 4, 'like':'čistítko', 'story': {'name':'O Červené karkulce', 'url':'https://youtu.be/WWjMRA1s6sg'}},
+    'ř': {'f': 311, 'n': 5, 'like':'řeřicha',  'story': {'name':'Alenka v říši divů', 'url':'https://youtu.be/k8ekzT85DjY'}},
+    'ž': {'f': 330, 'n': 6, 'like':'život',    'story': {'name':'Živá voda', 'url':'https://youtu.be/rI4xMJZWUhc'}},
+    'ý': {'f': 349, 'n': 7, 'like': None},
+    'á': {'f': 369, 'n': 8, 'like': None},
+    'í': {'f': 392, 'n': 9, 'like': 'Írán'},
+    'é': {'f': 415, 'n': 10, 'like': None},
+    '=': {'f': 440, 'n': 11, 'like': None},
+    '´': {'f': 466, 'n': 12, 'like': None},
 
-    'q': {'f': 415,  'like': 'kvark',   'story': {'name':'Don Quijote', 'url':'https://www.youtube.com/watch?v=zQFWKxmqx6Q'}},
-    'w': {'f': 466,  'like': 'western', 'story': {'name':' Werich: Žil kdys kdes chlap', 'url':'https://youtu.be/k_gDG1gUdmo'}},
-    'e': {'f': 554,  'like': 'ego',     'story': {'name':'O makové panence a motýlu Emanueli - O makové panence a Kaňce Čunčové', 'url':'https://www.youtube.com/watch?v=Dq2DXo8q3os'}},
-    'r': {'f': 622,  'like': 'rarášek', 'story': {'name':'O rybáři a jeho ženě', 'url':'https://www.youtube.com/watch?v=C9DrsQ_xlPI'}},
-    't': {'f': 740,  'like': 'táta',    'story': {'name':'Tři veteráni', 'url':'https://www.youtube.com/watch?v=rkG-FEAYeT8'}},
-    'z': {'f': 830,  'like': 'zahrada', 'story': {'name':'Zlatá husa', 'url':'https://youtu.be/G2Tvh47AXMU'}},
-    'u': {'f': 932,  'like': 'ulice',   'story': {'name':'Ubrousku, prostři se!', 'url':'https://www.youtube.com/watch?v=e_hLL-el5CI'}},
-    'i': {'f': 1108, 'like': 'indián',  'story': {'name':'Indiánské pohádky: Dar totemů', 'url':'https://youtu.be/fdFMZyDpu3k'}},
-    'o': {'f': 1245, 'like': 'Ondra',   'story': {'name':'O Pejskovi a Kočičce', 'url':'https://www.youtube.com/watch?v=-PGnB4LTs9E'}},
-    'p': {'f': 1480, 'like': 'pejsek',  'story': {'name':'Devatero pohádek, pohádka psí', 'url': 'https://www.youtube.com/watch?v=bxqOqsCoP2s'}},
-    'ú': {'f': 1661, 'like': 'úl',      'story': {'name':'Úžasňákovi', 'url':'https://www.youtube.com/watch?v=Apmp8Yvf36g'}},
-    ')': {'f': 1865, 'like': None,      'read_char_as': 'konec závorky'},
+    'q': {'f': 415, 'n': 13, 'like': 'kvark',   'story': {'name':'Don Quijote', 'url':'https://www.youtube.com/watch?v=zQFWKxmqx6Q'}},
+    'w': {'f': 466, 'n': 14, 'like': 'western', 'story': {'name':' Werich: Žil kdys kdes chlap', 'url':'https://youtu.be/k_gDG1gUdmo'}},
+    'e': {'f': 554, 'n': 15, 'like': 'ego',     'story': {'name':'O makové panence a motýlu Emanueli - O makové panence a Kaňce Čunčové', 'url':'https://www.youtube.com/watch?v=Dq2DXo8q3os'}},
+    'r': {'f': 622, 'n': 16, 'like': 'rarášek', 'story': {'name':'O rybáři a jeho ženě', 'url':'https://www.youtube.com/watch?v=C9DrsQ_xlPI'}},
+    't': {'f': 740, 'n': 17, 'like': 'táta',    'story': {'name':'Tři veteráni', 'url':'https://www.youtube.com/watch?v=rkG-FEAYeT8'}},
+    'z': {'f': 830, 'n': 18, 'like': 'zahrada', 'story': {'name':'Zlatá husa', 'url':'https://youtu.be/G2Tvh47AXMU'}},
+    'u': {'f': 932, 'n': 19, 'like': 'ulice',   'story': {'name':'Ubrousku, prostři se!', 'url':'https://www.youtube.com/watch?v=e_hLL-el5CI'}},
+    'i': {'f': 1108,'n': 20, 'like': 'indián',  'story': {'name':'Indiánské pohádky: Dar totemů', 'url':'https://youtu.be/fdFMZyDpu3k'}},
+    'o': {'f': 1245,'n': 21, 'like': 'Ondra',   'story': {'name':'O Pejskovi a Kočičce', 'url':'https://www.youtube.com/watch?v=-PGnB4LTs9E'}},
+    'p': {'f': 1480,'n': 22, 'like': 'pejsek',  'story': {'name':'Devatero pohádek, pohádka psí', 'url': 'https://www.youtube.com/watch?v=bxqOqsCoP2s'}},
+    'ú': {'f': 1661,'n': 23, 'like': 'úl',      'story': {'name':'Úžasňákovi', 'url':'https://www.youtube.com/watch?v=Apmp8Yvf36g'}},
+    ')': {'f': 1865,'n': 24, 'like': None,      'read_char_as': 'konec závorky'},
 
-    'a': {'f':440, 'like': 'auto',   'story': {'name':'Až opadá listí z dubu', 'url':'https://www.youtube.com/watch?v=WoV4g_erido'}},
-    's': {'f':494, 'like': 'strom',  'story': {'name':'Sůl nad zlato', 'url':'https://youtu.be/8IdcsbXP__U'}},
-    'd': {'f':523, 'like': 'dům',    'story': {'name':'Dlouhý, Široký a Bystrozraký', 'url':'https://youtu.be/VK1X7xHPCkU'}},
-    'f': {'f':587, 'like': 'fík',    'story': {'name':'František Nebojsa', 'url':'https://www.youtube.com/watch?v=Ery1iikkMGQ'}},
-    'g': {'f':659, 'like': 'gorila', 'story': {'name':'Jak Grinch ukradl Vánoce', 'url':'https://www.youtube.com/watch?v=U1z7rz3Bqgo'}},
-    'h': {'f':698, 'like': 'hrášek', 'story': {'name':'Hrnečku vař!', 'url':'https://www.youtube.com/watch?v=H8rY4WJK7ZA'}},
-    'j': {'f':784, 'like': 'jablko', 'story': {'name':'Král Ječmínek', 'url':'https://youtu.be/mmJEf3GwkEY'}},
-    'k': {'f':880, 'like': 'kočka',  'story': {'name': 'Křemílek a Vochomůrka', 'url': 'https://www.youtube.com/watch?v=aDK_Wj5RzkI'}},
-    'l': {'f':988, 'like': 'lev',    'story': {'name':'Líná pohádka', 'url':'https://youtu.be/1DEpccD7-ww'}},
-    'ů': {'f':1175,'like': None},
-    '§': {'f':1319,'like': None},
-    '¨': {'f':1397,'like': None},
+    'a': {'f':440,  'n': 25, 'like': 'auto',   'story': {'name':'Až opadá listí z dubu', 'url':'https://www.youtube.com/watch?v=WoV4g_erido'}},
+    's': {'f':494,  'n': 26, 'like': 'strom',  'story': {'name':'Sůl nad zlato', 'url':'https://youtu.be/8IdcsbXP__U'}},
+    'd': {'f':523,  'n': 27, 'like': 'dům',    'story': {'name':'Dlouhý, Široký a Bystrozraký', 'url':'https://youtu.be/VK1X7xHPCkU'}},
+    'f': {'f':587,  'n': 28, 'like': 'fík',    'story': {'name':'František Nebojsa', 'url':'https://www.youtube.com/watch?v=Ery1iikkMGQ'}},
+    'g': {'f':659,  'n': 29, 'like': 'gorila', 'story': {'name':'Jak Grinch ukradl Vánoce', 'url':'https://www.youtube.com/watch?v=U1z7rz3Bqgo'}},
+    'h': {'f':698,  'n': 30, 'like': 'hrášek', 'story': {'name':'Hrnečku vař!', 'url':'https://www.youtube.com/watch?v=H8rY4WJK7ZA'}},
+    'j': {'f':784,  'n': 31, 'like': 'jablko', 'story': {'name':'Král Ječmínek', 'url':'https://youtu.be/mmJEf3GwkEY'}},
+    'k': {'f':880,  'n': 32, 'like': 'kočka',  'story': {'name': 'Křemílek a Vochomůrka', 'url': 'https://www.youtube.com/watch?v=aDK_Wj5RzkI'}},
+    'l': {'f':988,  'n': 33, 'like': 'lev',    'story': {'name':'Líná pohádka', 'url':'https://youtu.be/1DEpccD7-ww'}},
+    'ů': {'f':1175, 'n': 34, 'like': None},
+    '§': {'f':1319, 'n': 35, 'like': None},
+    '¨': {'f':1397, 'n': 36, 'like': None},
 
-    '\\':{'f': 440, 'like': None},
-    'y': {'f': 466, 'like': 'Yetti',  'story': {'name':'Yakari a velký orel', 'url':'https://youtu.be/u1Gcu0Ij_w8'}},
-    'x': {'f': 494, 'like': 'xilofon','story': {'name':'Bylo nás pět', 'url':'https://youtu.be/EH7LO9GIFns'}},
-    'c': {'f': 523, 'like': 'citrón', 'story': {'name':'Chytrá horákyně', 'url':'https://www.youtube.com/watch?v=7lYa5m3i3BA'}},
-    'v': {'f': 554, 'like': 'včela',  'story': {'name':'Přátelství vydry', 'url':'https://youtu.be/XaQgL1Rl0kM'}},
-    'b': {'f': 587, 'like': 'babička','story': {'name':'Budulínek', 'url':'https://www.youtube.com/watch?v=PzFR5wFUFLw'}},
-    'n': {'f': 622, 'like': 'nočník', 'story': {'name':'Neználek', 'url':'https://www.youtube.com/watch?v=YLGNNs6Yh5Y'}},
-    'm': {'f': 659, 'like': 'máma',   'story': {'name':'Mach a Šebestová', 'url':'https://www.youtube.com/watch?v=BuPrNST4ofY'}},
-    ',': {'f': 698, 'like': None},
-    '.': {'f': 740,'like': None},
-    '-': {'f': 784,'like': None},
+    '\\':{'f': 440, 'n': 37, 'like': None},
+    'y': {'f': 466, 'n': 38, 'like': 'Yetti',  'story': {'name':'Yakari a velký orel', 'url':'https://youtu.be/u1Gcu0Ij_w8'}},
+    'x': {'f': 494, 'n': 39, 'like': 'xilofon','story': {'name':'Bylo nás pět', 'url':'https://youtu.be/EH7LO9GIFns'}},
+    'c': {'f': 523, 'n': 40, 'like': 'citrón', 'story': {'name':'Chytrá horákyně', 'url':'https://www.youtube.com/watch?v=7lYa5m3i3BA'}},
+    'v': {'f': 554, 'n': 41, 'like': 'včela',  'story': {'name':'Přátelství vydry', 'url':'https://youtu.be/XaQgL1Rl0kM'}},
+    'b': {'f': 587, 'n': 42, 'like': 'babička','story': {'name':'Budulínek', 'url':'https://www.youtube.com/watch?v=PzFR5wFUFLw'}},
+    'n': {'f': 622, 'n': 43, 'like': 'nočník', 'story': {'name':'Neználek', 'url':'https://www.youtube.com/watch?v=YLGNNs6Yh5Y'}},
+    'm': {'f': 659, 'n': 44, 'like': 'máma',   'story': {'name':'Mach a Šebestová', 'url':'https://www.youtube.com/watch?v=BuPrNST4ofY'}},
+    ',': {'f': 698, 'n': 45, 'like': None},
+    '.': {'f': 740, 'n': 46, 'like': None},
+    '-': {'f': 784, 'n': 47, 'like': None},
 }
 
 brambora = """
@@ -96,8 +116,15 @@ Kdyby tudy projel vlak,
 byl by z tebe bramborák!
 """
 
+
 def switch_mode(new_mode_id):
     global player, current_mode_id
+
+    print(' -> new mode:', new_mode_id)
+
+    if new_mode_id not in modes:
+        print('!!! unsupported mode: ', new_mode_id)
+        return
 
     if player is not None:
         player.stop()
@@ -112,14 +139,18 @@ def switch_mode(new_mode_id):
 def is_piano_mode():
     return current_mode_id == 0
 
+
 def is_read_char_mode():
     return current_mode_id == 1
+
 
 def is_read_sentence_mode():
     return current_mode_id == 2
 
+
 def is_story_mode():
     return current_mode_id == 3
+
 
 def is_poem_mode():
     return current_mode_id == 4
@@ -129,8 +160,12 @@ def say(text, lang='cs', slow=False):
     speech = gTTS(text=text, lang=lang, slow=slow)
     speech.save('text-to-speech.mp3')
 
-    # alternative: os.system("start text-to-speech.mp3")
-    p = vlc.MediaPlayer('file:///text-to-speech.mp3')
+    if platform.system() == 'Widows':
+        p = vlc.MediaPlayer('file:///text-to-speech.mp3')  # Windows
+        # another windows alternative: os.system("start text-to-speech.mp3") # needs: import os
+    else:
+        p = vlc.MediaPlayer('text-to-speech.mp3')  # Linux
+
     p.play()
 
     print(text)
@@ -144,7 +179,7 @@ def say_char(char):
         say(char)
 
     if char in keys and 'like' in keys[char] and keys[char]['like'] is not None:
-        say("Jako "+ keys[char]['like'] +".")
+        say("Jako " + keys[char]['like'] + ".")
 
 
 def process_sentence_key(key):
@@ -184,6 +219,7 @@ def play_story(story):
     say(story['name'])
     play_youtube(story['url'])
 
+
 def play_youtube(url='https://www.youtube.com/watch?v=Ery1iikkMGQ'):
     video = pafy.new(url)
     best = video.getbest()
@@ -201,12 +237,35 @@ def play_youtube(url='https://www.youtube.com/watch?v=Ery1iikkMGQ'):
     player.set_media(media)
     player.play()
 
+
+def play_piano_key(key_char):
+    if isFrequencyMode and platform.system() == 'Windows':
+        freq = keys[key_char]['f']
+        winsound.Beep(freq, 150)
+    else:
+        filename = '../piano/' + notes[firstNote + keys[key_char]['n']] + '.mp3'
+        print(filename)
+        p = vlc.MediaPlayer(filename)
+        p.play()
+        # sine_tone(
+        #     # see http://www.phy.mtu.edu/~suits/notefreqs.html
+        #     frequency=freq,  # Hz, waves per second A4
+        #     duration=duration,  # seconds to play sound
+        #     volume=1.0,  # 0..1 how loud it is
+        #     # see http://en.wikipedia.org/wiki/Bit_rate#Audio
+        #     sample_rate=22050  # number of samples per second
+        # )
+
+
 def on_press(key):
+    global isFrequencyMode
     try:
         # print('{0} pressed'.format(key))
         if hasattr(key, 'char') and key.char is not None:
-            if is_piano_mode() and key.char in keys:
-                winsound.Beep(keys[key.char]['f'], 150)
+            if key.char.isdigit():  # linux
+                switch_mode(int(key.char))
+            elif is_piano_mode() and key.char in keys:
+                play_piano_key(key.char)
             elif is_read_char_mode() and key.char is not None:
                 say_char(key.char)
             elif is_read_sentence_mode():
@@ -224,14 +283,17 @@ def on_press(key):
         elif key == Key.tab:
             if is_read_sentence_mode():
                 process_sentence_key(key)
-        elif hasattr(key, 'vk'):
+            elif is_piano_mode():
+                isFrequencyMode = not isFrequencyMode
+        elif hasattr(key, 'vk'):  # windows
             num_pad = key.vk - 96
             if 0 <= num_pad <= 9:
-                print(' -> new mode:', num_pad)
-                if num_pad in modes:
-                    switch_mode(num_pad)
+                switch_mode(num_pad)
+
+    except NameError as err:
+        print("NameError: {0}".format(err))
     except:
-        print("jejda!")
+        print("Unexpected error:", sys.exc_info()[0])
 
 
 def on_release(key):
